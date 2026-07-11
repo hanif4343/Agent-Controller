@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Orchestrator Control</title>
+<meta name="theme-color" content="#0f1117" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Orchestrator" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="icon" href="icons/icon-192.png" /><script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/dist/browsers/sodium.js"></script>
+<style>
+  :root{
+    --bg:#0f1117; --card:#1a1d27; --border:#2a2e3a; --text:#e7e5e0; --muted:#8b8f9c;
+    --amber:#f2a65a; --amber-ink:#1a1408; --green:#3ddc97; --red:#f0616d;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+  ::selection{background:#f2a65a55;}
+
+  .screen-center{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .card-field{width:100%; margin-top:6px; padding:11px 12px; border-radius:10px; font-size:14px;
+    background:var(--card); border:1px solid var(--border); color:var(--text); outline:none;}
+  .card-field:focus{border-color:var(--amber);}
+  .label{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+  .btn-primary{width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600;
+    background:var(--amber); color:var(--amber-ink); border:none; display:flex; align-items:center;
+    justify-content:center; gap:8px;}
+  .btn-primary:disabled{opacity:.6;}
+  .btn-ghost{font-size:11px; padding:6px 10px; border-radius:8px; background:var(--card); color:var(--muted); border:1px solid var(--border);}
+  .icon{display:inline-block; vertical-align:middle;}
+  .spin{animation:spin 1s linear infinite; transform-origin:center;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  header.top{position:sticky; top:0; z-index:10; padding:16px 16px 12px; background:#0f1117ee; backdrop-filter:blur(6px);}
+  .row-between{display:flex; align-items:center; justify-content:space-between;}
+  .repo-name{font-size:14px; font-weight:600; line-height:1.1;}
+  .repo-branch{font-size:11px; color:var(--muted);}
+  .strip{display:flex; gap:8px; margin-top:12px; overflow-x:auto; padding-bottom:2px;}
+  .chip{display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:10px; font-size:12px; white-space:nowrap;}
+  .chip b{font-weight:700;}
+  .manual-banner{display:flex; align-items:center; gap:8px; margin-top:12px; padding:9px 12px; border-radius:10px;
+    font-size:12px; background:#f0616d1a; color:var(--red); border:1px solid #f0616d33;}
+  .tabs{display:flex; gap:4px; margin-top:12px; padding:4px; border-radius:10px; background:var(--card);}
+  .tab-btn{flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:9px 0;
+    border-radius:8px; font-size:12px; font-weight:600; border:none; background:transparent; color:var(--muted);}
+  .tab-btn.active{background:var(--amber); color:var(--amber-ink);}
+
+  main{padding:0 16px 100px;}
+  .tools-row{display:flex; align-items:center; justify-content:space-between; margin:8px 0;}
+  .autoref{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted);}
+  .empty{text-align:center; padding:60px 0; font-size:14px; color:var(--muted);}
+
+  .task-card{border-radius:14px; padding:12px; background:var(--card); border:1px solid var(--border); margin-bottom:8px;}
+  .task-card.manual{border-color:#f0616d55;}
+  .task-top{width:100%; text-align:left; background:none; border:none; color:inherit; padding:0;}
+  .task-id{font-size:10px; color:var(--muted);}
+  .task-title{font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .task-meta{display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .badge{display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600;}
+  .provider-pill{font-size:10px; padding:4px 9px; border-radius:999px; background:#2a2e3a; color:#c9cdd8;}
+  .attempts{font-size:10px; color:var(--muted);}
+  .flag{display:flex; align-items:center; gap:4px; font-size:10px; color:var(--red);}
+  .task-detail{margin-top:10px; padding-top:10px; border-top:1px solid var(--border);}
+  .task-instruction{font-size:12px; color:#c9cdd8; margin-bottom:6px;}
+  .task-target{font-size:11px; color:var(--muted); margin-bottom:6px;}
+  .task-error{font-size:11px; padding:8px; border-radius:8px; background:var(--bg); color:var(--red);
+    white-space:pre-wrap; max-height:160px; overflow-y:auto;}
+
+  .run-card{display:block; border-radius:14px; padding:12px; background:var(--card); border:1px solid var(--border);
+    margin-bottom:8px; text-decoration:none; color:inherit;}
+  .run-name{font-size:14px; font-weight:600;}
+  .run-meta{font-size:11px; color:var(--muted); margin-top:2px;}
+  .run-status{font-size:11px; font-weight:600;}
+
+  .form-stack > div{margin-bottom:12px;}
+  textarea.card-field{resize:none;}
+
+  .toast{position:fixed; left:16px; right:16px; bottom:20px; padding:12px 14px; border-radius:12px;
+    font-size:12px; font-weight:600; color:#0f1117; box-shadow:0 8px 24px #0006; z-index:50;}
+  .err-box{font-size:12px; padding:9px 12px; border-radius:10px; background:#f0616d1a; color:var(--red);
+    display:flex; align-items:center; gap:8px; margin-top:6px;}
+  .remember-row{display:flex; align-items:flex-start; gap:8px; font-size:11px; color:var(--muted); margin-top:4px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ================= ICONS (inline SVG, no external deps) ================= */
+const ICONS = {
+  gear: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>`,
+  zap: (s=18,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="${c}" stroke="none"><path d="M13 2 L4 14 H11 L10 22 L20 9 H13 Z"/></svg>`,
+  radio: (s=16,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>`,
+  plus: (s=16,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  refresh: (s=13,c='currentColor',spin=false)=>`<svg class="icon ${spin?'spin':''}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>`,
+  play: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="${c}" stroke="none"><polygon points="6 3 20 12 6 21"/></svg>`,
+  check: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+  x: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  clock: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>`,
+  warn: (s=14,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  ext: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+  loader: (s=16,c='currentColor')=>`<svg class="icon spin" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round"><path d="M12 2 A10 10 0 0 1 22 12"/></svg>`,
+  chevDown: (s=16,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+  chevUp: (s=16,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`,
+  list: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+  runs: (s=13,c='currentColor')=>`<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16" fill="${c}" stroke="none"/></svg>`,
+};
+
+/* ================= base64 <-> utf8 ================= */
+const toB64 = (str) => btoa(unescape(encodeURIComponent(str)));
+const fromB64 = (b64) => decodeURIComponent(escape(atob(b64.replace(/\n/g, ""))));
+
+const CONFIG_TEMPLATES = {
+  flutter: { language: "flutter", validate_commands: ["flutter pub get", "flutter analyze", "flutter test"] },
+  python: { language: "python", validate_commands: ["python -m py_compile {target_file}"] },
+  kotlin: { language: "kotlin", validate_commands: ["./gradlew build --no-daemon"] },
+  node: { language: "node", validate_commands: ["npm install", "npm test"] },
+  generic: { language: "generic", validate_commands: [] },
+};
+
+const STATUS_META = {
+  pending:     { label: "অপেক্ষমান", color: "#8b8f9c", bg: "#8b8f9c1a", icon: "clock" },
+  in_progress: { label: "চলছে",       color: "#f2a65a", bg: "#f2a65a1a", icon: "loader" },
+  done:        { label: "সম্পন্ন",     color: "#3ddc97", bg: "#3ddc971a", icon: "check" },
+  failed:      { label: "ব্যর্থ",       color: "#f0616d", bg: "#f0616d1a", icon: "x" },
+};
+
+/* ================= state ================= */
+const state = {
+  connected: false, connecting: false, connError: "",
+  token: "", owner: "", repo: "", remember: false,
+  defaultBranch: "main", tab: "tasks",
+  tasks: [], runs: [],
+  loadingTasks: false, loadingRuns: false,
+  expandedId: null, toast: null, autoRefresh: true,
+  submitting: false, triggering: false,
+  outputOwner: "", outputRepo: "", savingOutput: false,
+  pollTimer: null,
+};
+
+const app = document.getElementById("app");
+
+function showToast(text, kind = "ok") {
+  state.toast = { text, kind };
+  renderApp();
+  setTimeout(() => { state.toast = null; renderApp(); }, 3200);
+}
+
+async function gh(path, opts = {}) {
+  const res = await fetch(`https://api.github.com${path}`, {
+    ...opts,
+    headers: {
+      Authorization: `token ${state.token}`,
+      Accept: "application/vnd.github+json",
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GitHub API ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+/* ================= data loaders ================= */
+async function loadTasks(rerender = true) {
+  state.loadingTasks = true;
+  if (rerender && state.tab === "tasks") renderApp();
+  try {
+    const data = await gh(`/repos/${state.owner}/${state.repo}/contents/tasks.json`);
+    state.tasks = JSON.parse(fromB64(data.content));
+  } catch (e) {
+    if (!String(e.message).includes("404")) showToast(`tasks.json লোড করা যায়নি: ${e.message}`, "err");
+    else state.tasks = [];
+  } finally {
+    state.loadingTasks = false;
+    if (rerender && state.tab === "tasks") renderApp();
+  }
+}
+
+async function loadRuns(rerender = true) {
+  state.loadingRuns = true;
+  if (rerender && state.tab === "runs") renderApp();
+  try {
+    const data = await gh(`/repos/${state.owner}/${state.repo}/actions/runs?per_page=10`);
+    state.runs = data.workflow_runs || [];
+  } catch (e) {
+    showToast(`Run লিস্ট লোড করা যায়নি: ${e.message}`, "err");
+  } finally {
+    state.loadingRuns = false;
+    if (rerender && state.tab === "runs") renderApp();
+  }
+}
+
+/* ================= actions ================= */
+async function connect() {
+  state.token = document.getElementById("f-token").value.trim();
+  state.owner = document.getElementById("f-owner").value.trim();
+  state.repo = document.getElementById("f-repo").value.trim();
+  state.remember = document.getElementById("f-remember").checked;
+
+  if (!state.token || !state.owner || !state.repo) {
+    state.connError = "Token, owner, repo — তিনটাই দরকার।";
+    renderApp();
+    return;
+  }
+  state.connecting = true; state.connError = "";
+  renderApp();
+  try {
+    const data = await gh(`/repos/${state.owner}/${state.repo}`);
+    state.defaultBranch = data.default_branch || "main";
+    state.connected = true;
+    if (state.remember) {
+      localStorage.setItem("oc_session", JSON.stringify({ token: state.token, owner: state.owner, repo: state.repo }));
+    } else {
+      localStorage.removeItem("oc_session");
+    }
+  } catch (e) {
+    state.connError = e.message.includes("404") ? "Repo পাওয়া যায়নি বা token-এর access নেই" : e.message;
+  } finally {
+    state.connecting = false;
+    renderApp();
+    if (state.connected) { loadTasks(); loadRuns(); startPolling(); }
+  }
+}
+
+function disconnect() {
+  state.connected = false;
+  localStorage.removeItem("oc_session");
+  stopPolling();
+  renderApp();
+}
+
+function startPolling() {
+  stopPolling();
+  state.pollTimer = setInterval(() => {
+    if (!state.autoRefresh) return;
+    loadTasks();
+    loadRuns();
+  }, 20000);
+}
+function stopPolling() { if (state.pollTimer) clearInterval(state.pollTimer); }
+
+async function submitTask() {
+  const title = document.getElementById("f-title").value.trim();
+  const instruction = document.getElementById("f-instruction").value.trim();
+  const target_file = document.getElementById("f-target").value.trim();
+
+  if (!title || !instruction || !target_file) {
+    showToast("টাইটেল, নির্দেশনা, টার্গেট ফাইল — সবগুলো পূরণ করো।", "err");
+    return;
+  }
+  state.submitting = true; renderApp();
+  try {
+    let currentTasks = []; let sha = null;
+    try {
+      const data = await gh(`/repos/${state.owner}/${state.repo}/contents/tasks.json`);
+      currentTasks = JSON.parse(fromB64(data.content));
+      sha = data.sha;
+    } catch (e) { if (!String(e.message).includes("404")) throw e; }
+
+    const nextNum = currentTasks.length + 1;
+    const newTask = {
+      id: `task_${String(nextNum).padStart(3, "0")}`,
+      title, instruction, target_file,
+      context_files: [], status: "pending", attempts: 0, last_error: null, provider: null,
+    };
+    currentTasks.push(newTask);
+
+    await gh(`/repos/${state.owner}/${state.repo}/contents/tasks.json`, {
+      method: "PUT",
+      body: JSON.stringify({
+        message: `Add task: ${title}`,
+        content: toB64(JSON.stringify(currentTasks, null, 2)),
+        sha: sha || undefined,
+        branch: state.defaultBranch,
+      }),
+    });
+
+    showToast(`✔ ${newTask.id} যোগ হয়েছে`, "ok");
+    document.getElementById("f-title").value = "";
+    document.getElementById("f-instruction").value = "";
+    document.getElementById("f-target").value = "";
+    state.tab = "tasks";
+    renderApp();
+    loadTasks();
+  } catch (e) {
+    showToast(`টাস্ক যোগ করা যায়নি: ${e.message}`, "err");
+  } finally {
+    state.submitting = false;
+    renderApp();
+  }
+}
+
+async function triggerRun() {
+  state.triggering = true; renderApp();
+  try {
+    await gh(`/repos/${state.owner}/${state.repo}/actions/workflows/orchestrator.yml/dispatches`, {
+      method: "POST",
+      body: JSON.stringify({ ref: state.defaultBranch }),
+    });
+    showToast("✔ Orchestrator রান ট্রিগার হয়েছে", "ok");
+    setTimeout(() => loadRuns(), 3000);
+  } catch (e) {
+    showToast(`রান ট্রিগার করা যায়নি: ${e.message}`, "err");
+  } finally {
+    state.triggering = false; renderApp();
+  }
+}
+
+/* ================= output repo config + GitHub secret ================= */
+
+async function encryptForGithub(publicKeyB64, secretValue) {
+  await sodium.ready;
+  const keyBytes = sodium.from_base64(publicKeyB64, sodium.base64_variants.ORIGINAL);
+  const messageBytes = sodium.from_string(secretValue);
+  const encryptedBytes = sodium.crypto_box_seal(messageBytes, keyBytes);
+  return sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL);
+}
+
+async function setRepoSecret(owner, repo, secretName, secretValue) {
+  const pk = await gh(`/repos/${owner}/${repo}/actions/secrets/public-key`);
+  const encrypted = await encryptForGithub(pk.key, secretValue);
+  await gh(`/repos/${owner}/${repo}/actions/secrets/${secretName}`, {
+    method: "PUT",
+    body: JSON.stringify({ encrypted_value: encrypted, key_id: pk.key_id }),
+  });
+}
+
+async function updateWorkflowOutputRepo(path, ownerRepoStr) {
+  let fileData;
+  try {
+    fileData = await gh(`/repos/${state.owner}/${state.repo}/contents/${path}`);
+  } catch (e) {
+    return; // ফাইল না থাকলে স্কিপ করো (যেমন build-apk.yml যদি না থাকে)
+  }
+  const content = fromB64(fileData.content);
+  if (!/OUTPUT_REPO:\s*\S+/.test(content)) return;
+  const updated = content.replace(/OUTPUT_REPO:\s*\S+/, `OUTPUT_REPO: ${ownerRepoStr}`);
+  if (updated === content) return; // ইতিমধ্যে ঠিক আছে
+  await gh(`/repos/${state.owner}/${state.repo}/contents/${path}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      message: `Set output repo: ${ownerRepoStr}`,
+      content: toB64(updated),
+      sha: fileData.sha,
+      branch: state.defaultBranch,
+    }),
+  });
+}
+
+async function saveOutputConfig() {
+  const outOwner = document.getElementById("f-out-owner").value.trim();
+  const outRepo = document.getElementById("f-out-repo").value.trim();
+  if (!outOwner || !outRepo) {
+    showToast("Output repo-র owner ও repo নাম দুটোই দাও।", "err");
+    return;
+  }
+  state.savingOutput = true; renderApp();
+  try {
+    const ownerRepoStr = `${outOwner}/${outRepo}`;
+
+    // ১. দুইটা workflow ফাইলে OUTPUT_REPO লাইন আপডেট করা
+    await updateWorkflowOutputRepo(".github/workflows/orchestrator.yml", ownerRepoStr);
+    await updateWorkflowOutputRepo(".github/workflows/build-apk.yml", ownerRepoStr);
+
+    // ২. একই token দিয়ে OUTPUT_REPO_TOKEN secret বসানো (encrypt করে)
+    await setRepoSecret(state.owner, state.repo, "OUTPUT_REPO_TOKEN", state.token);
+
+    state.outputOwner = outOwner; state.outputRepo = outRepo;
+    localStorage.setItem("oc_output", JSON.stringify({ owner: outOwner, repo: outRepo }));
+
+    showToast(`✔ Output repo সেট হলো: ${ownerRepoStr}`, "ok");
+  } catch (e) {
+    showToast(`সেট করা যায়নি: ${e.message}`, "err");
+  } finally {
+    state.savingOutput = false; renderApp();
+  }
+}
+
+function setTab(t) { state.tab = t; renderApp(); if (t === "tasks") loadTasks(); if (t === "runs") loadRuns(); }
+function toggleExpand(id) { state.expandedId = state.expandedId === id ? null : id; renderApp(); }
+function toggleAutoRefresh() { state.autoRefresh = !state.autoRefresh; renderApp(); }
+
+/* ================= render ================= */
+function badge(status, spin) {
+  const m = STATUS_META[status] || STATUS_META.pending;
+  return `<span class="badge" style="color:${m.color};background:${m.bg}">${ICONS[m.icon](13, m.color, spin)}${m.label}</span>`;
+}
+
+function renderConnectScreen() {
+  app.innerHTML = `
+    <div class="screen-center">
+      <div style="width:100%; max-width:380px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          ${ICONS.zap(22, "#f2a65a")}
+          <h1 style="font-size:18px;font-weight:700;margin:0;">Orchestrator Control</h1>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin:0 0 20px;">তোমার AI orchestrator repo-র সাথে সংযুক্ত হও।</p>
+
+        <div class="label">GitHub Token (classic, "repo" scope সহ)</div>
+        <input id="f-token" type="password" class="card-field mono" placeholder="ghp_..." value="${state.token}"/>
+
+        <div class="grid2" style="margin-top:12px;">
+          <div>
+            <div class="label">Owner</div>
+            <input id="f-owner" class="card-field" placeholder="hanif4343" value="${state.owner}"/>
+          </div>
+          <div>
+            <div class="label">Repo</div>
+            <input id="f-repo" class="card-field" placeholder="My-Agent" value="${state.repo}"/>
+          </div>
+        </div>
+
+        <label class="remember-row">
+          <input id="f-remember" type="checkbox" ${state.remember ? "checked" : ""} style="margin-top:2px;"/>
+          <span>এই ডিভাইসে মনে রাখো। (token এনক্রিপ্ট ছাড়া সেভ হয় — শুধু নিজের ডিভাইসে করলেই ভালো)</span>
+        </label>
+
+        ${state.connError ? `<div class="err-box">${ICONS.warn(14, "#f0616d")} ${state.connError}</div>` : ""}
+
+        <button class="btn-primary" style="margin-top:16px;" onclick="connect()" ${state.connecting ? "disabled" : ""}>
+          ${state.connecting ? ICONS.loader(16, "#1a1408") : ICONS.radio(16, "#1a1408")} সংযুক্ত হও
+        </button>
+      </div>
+    </div>`;
+}
+
+function renderHeader() {
+  const counts = state.tasks.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
+  const needsManual = state.tasks.filter((t) => t.status === "failed" && (t.attempts || 0) >= 3);
+
+  return `
+    <header class="top">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${ICONS.zap(18, "#f2a65a")}
+          <div>
+            <div class="repo-name">${state.owner}/${state.repo}</div>
+            <div class="repo-branch">branch: ${state.defaultBranch}</div>
+          </div>
+        </div>
+        <button class="btn-ghost" onclick="disconnect()">সংযোগ বিচ্ছিন্ন করো</button>
+      </div>
+
+      <div class="strip">
+        ${["pending","in_progress","done","failed"].map(s => `
+          <div class="chip" style="background:${STATUS_META[s].bg};color:${STATUS_META[s].color}">
+            <b>${counts[s]||0}</b> ${STATUS_META[s].label}
+          </div>`).join("")}
+      </div>
+
+      ${needsManual.length > 0 ? `
+        <div class="manual-banner">${ICONS.warn(15,"#f0616d")} ${needsManual.length}টা টাস্ক AI নিজে ঠিক করতে পারেনি — ম্যানুয়াল চেক দরকার</div>
+      ` : ""}
+
+      <div class="tabs">
+        <button class="tab-btn ${state.tab==='tasks'?'active':''}" onclick="setTab('tasks')">${ICONS.list(13, state.tab==='tasks'?'#1a1408':'#8b8f9c')} টাস্ক</button>
+        <button class="tab-btn ${state.tab==='runs'?'active':''}" onclick="setTab('runs')">${ICONS.runs(13, state.tab==='runs'?'#1a1408':'#8b8f9c')} রান</button>
+        <button class="tab-btn ${state.tab==='add'?'active':''}" onclick="setTab('add')">${ICONS.plus(13, state.tab==='add'?'#1a1408':'#8b8f9c')} নতুন</button>
+        <button class="tab-btn ${state.tab==='settings'?'active':''}" onclick="setTab('settings')">${ICONS.gear(13, state.tab==='settings'?'#1a1408':'#8b8f9c')} সেটিংস</button>
+      </div>
+    </header>`;
+}
+
+function renderTasksTab() {
+  if (state.tasks.length === 0 && !state.loadingTasks) {
+    return `
+      <div class="tools-row">
+        <label class="autoref"><input type="checkbox" ${state.autoRefresh?"checked":""} onchange="toggleAutoRefresh()"/> অটো-রিফ্রেশ (২০সে.)</label>
+        <button class="btn-ghost" onclick="loadTasks()">${ICONS.refresh(12,'#8b8f9c',state.loadingTasks)} রিফ্রেশ</button>
+      </div>
+      <div class="empty">কোনো টাস্ক নেই। "নতুন টাস্ক" ট্যাব থেকে যোগ করো।</div>`;
+  }
+
+  const cards = state.tasks.map((t) => {
+    const isManual = t.status === "failed" && (t.attempts||0) >= 3;
+    const expanded = state.expandedId === t.id;
+    return `
+      <div class="task-card ${isManual?'manual':''}">
+        <button class="task-top" onclick="toggleExpand('${t.id}')">
+          <div class="row-between">
+            <div style="min-width:0;">
+              <div class="task-id mono">${t.id}</div>
+              <div class="task-title">${escapeHtml(t.title)}</div>
+            </div>
+            ${expanded ? ICONS.chevUp(16,'#8b8f9c') : ICONS.chevDown(16,'#8b8f9c')}
+          </div>
+          <div class="task-meta">
+            ${badge(t.status, t.status==='in_progress')}
+            ${t.provider ? `<span class="provider-pill mono">${t.provider}</span>` : ""}
+            <span class="attempts">${t.attempts||0} বার চেষ্টা</span>
+            ${isManual ? `<span class="flag">${ICONS.warn(11,'#f0616d')} ম্যানুয়াল ফিক্স দরকার</span>` : ""}
+          </div>
+        </button>
+        ${expanded ? `
+          <div class="task-detail">
+            <div class="task-instruction">${escapeHtml(t.instruction||"")}</div>
+            <div class="task-target mono">→ ${escapeHtml(t.target_file||"")}</div>
+            ${t.last_error ? `<div class="task-error mono">${escapeHtml(t.last_error)}</div>` : ""}
+          </div>` : ""}
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="tools-row">
+      <label class="autoref"><input type="checkbox" ${state.autoRefresh?"checked":""} onchange="toggleAutoRefresh()"/> অটো-রিফ্রেশ (২০সে.)</label>
+      <button class="btn-ghost" onclick="loadTasks()">${ICONS.refresh(12,'#8b8f9c',state.loadingTasks)} রিফ্রেশ</button>
+    </div>
+    ${cards}`;
+}
+
+function renderRunsTab() {
+  const runCards = state.runs.map((r) => {
+    const isRunning = r.status !== "completed";
+    const ok = r.conclusion === "success";
+    const color = isRunning ? "#f2a65a" : ok ? "#3ddc97" : "#f0616d";
+    const label = isRunning ? "চলছে" : ok ? "সফল" : "ব্যর্থ";
+    return `
+      <a class="run-card" href="${r.html_url}" target="_blank" rel="noreferrer">
+        <div class="row-between">
+          <div>
+            <div class="run-name">${escapeHtml(r.name||"run")}</div>
+            <div class="run-meta">#${r.run_number} · ${new Date(r.created_at).toLocaleString("bn-BD")}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="run-status" style="color:${color}">${label}</span>
+            ${ICONS.ext(13,'#8b8f9c')}
+          </div>
+        </div>
+      </a>`;
+  }).join("");
+
+  return `
+    <div class="tools-row">
+      <button class="btn-primary" style="width:auto;padding:9px 14px;font-size:12px;" onclick="triggerRun()" ${state.triggering?"disabled":""}>
+        ${state.triggering ? ICONS.loader(13,'#1a1408') : ICONS.play(13,'#1a1408')} Orchestrator রান করো
+      </button>
+      <button class="btn-ghost" onclick="loadRuns()">${ICONS.refresh(12,'#8b8f9c',state.loadingRuns)} রিফ্রেশ</button>
+    </div>
+    ${runCards || (!state.loadingRuns ? `<div class="empty">এখনো কোনো রান হয়নি।</div>` : "")}`;
+}
+
+function renderAddTab() {
+  return `
+    <div class="form-stack" style="margin-top:8px;">
+      <div>
+        <div class="label">টাইটেল</div>
+        <input id="f-title" class="card-field" placeholder="Create a calculator"/>
+      </div>
+      <div>
+        <div class="label">নির্দেশনা (বিস্তারিত)</div>
+        <textarea id="f-instruction" class="card-field" rows="4" placeholder="কী বানাতে হবে বিস্তারিত লেখো..."></textarea>
+      </div>
+      <div>
+        <div class="label">টার্গেট ফাইল</div>
+        <input id="f-target" class="card-field mono" placeholder="calculator.py"/>
+      </div>
+      <button class="btn-primary" onclick="submitTask()" ${state.submitting?"disabled":""}>
+        ${state.submitting ? ICONS.loader(16,'#1a1408') : ICONS.plus(16,'#1a1408')} টাস্ক যোগ করো
+      </button>
+      <p style="font-size:11px;text-align:center;color:var(--muted);">এটা tasks.json এ যোগ হবে ${state.defaultBranch} ব্রাঞ্চে। কোড My-Story-from-Agent রিপোতে গিয়ে জমা হবে।</p>
+    </div>`;
+}
+
+function renderSettingsTab() {
+  const current = state.outputOwner && state.outputRepo ? `${state.outputOwner}/${state.outputRepo}` : null;
+  return `
+    <div class="form-stack" style="margin-top:8px;">
+      <div class="task-card" style="margin-bottom:4px;">
+        <div style="font-size:12px;color:var(--muted);">বর্তমান output repo</div>
+        <div style="font-size:14px;font-weight:600;margin-top:2px;">${current ? escapeHtml(current) : "এখনো সেট করা হয়নি"}</div>
+      </div>
+      <div>
+        <div class="label">Output Repo — Owner</div>
+        <input id="f-out-owner" class="card-field" placeholder="hanif4343" value="${state.outputOwner}"/>
+      </div>
+      <div>
+        <div class="label">Output Repo — নাম</div>
+        <input id="f-out-repo" class="card-field" placeholder="My-Story-from-Agent" value="${state.outputRepo}"/>
+      </div>
+      <button class="btn-primary" onclick="saveOutputConfig()" ${state.savingOutput?"disabled":""}>
+        ${state.savingOutput ? ICONS.loader(16,'#1a1408') : ICONS.gear(16,'#1a1408')} সেভ করো
+      </button>
+      <p style="font-size:11px;text-align:center;color:var(--muted);">
+        এটা দুটো workflow ফাইলে OUTPUT_REPO আপডেট করবে, এবং তোমার এই একই token দিয়ে
+        My-Agent রিপোতে <span class="mono">OUTPUT_REPO_TOKEN</span> secret বসিয়ে দেবে —
+        GitHub Settings-এ আলাদা করে কিছু করতে হবে না।
+      </p>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.innerText = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+
+function renderApp() {
+  if (!state.connected) { renderConnectScreen(); return; }
+
+  const content = state.tab === "tasks" ? renderTasksTab()
+    : state.tab === "runs" ? renderRunsTab()
+    : state.tab === "settings" ? renderSettingsTab()
+    : renderAddTab();
+
+  app.innerHTML = `
+    ${renderHeader()}
+    <main>${content}</main>
+    ${state.toast ? `<div class="toast" style="background:${state.toast.kind==='err'?'#f0616d':'#3ddc97'}">${state.toast.text}</div>` : ""}
+  `;
+}
+
+/* ================= boot ================= */
+(function init() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("oc_session") || "null");
+    if (saved) { state.token = saved.token; state.owner = saved.owner; state.repo = saved.repo; state.remember = true; }
+  } catch (e) {}
+
+  try {
+    const savedOutput = JSON.parse(localStorage.getItem("oc_output") || "null");
+    if (savedOutput) { state.outputOwner = savedOutput.owner || ""; state.outputRepo = savedOutput.repo || ""; }
+  } catch (e) {}
+
+  renderApp();
+
+  if (state.token && state.owner && state.repo) {
+    // সেভ করা তথ্য থাকলে অটো-কানেক্ট চেষ্টা করা
+    gh(`/repos/${state.owner}/${state.repo}`).then((data) => {
+      state.defaultBranch = data.default_branch || "main";
+      state.connected = true;
+      renderApp();
+      loadTasks(); loadRuns(); startPolling();
+    }).catch(() => { /* ব্যর্থ হলে connect screen-ই থাকবে */ });
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
