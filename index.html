@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="Orchestrator" />
 <link rel="manifest" href="manifest.json" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
-<link rel="icon" href="icons/icon-192.png" /><script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/dist/browsers/sodium.js"></script>
+<link rel="icon" href="icons/icon-192.png" />
 <style>
   :root{
     --bg:#0f1117; --card:#1a1d27; --border:#2a2e3a; --text:#e7e5e0; --muted:#8b8f9c;
@@ -318,24 +318,7 @@ async function triggerRun() {
   }
 }
 
-/* ================= output repo config + GitHub secret ================= */
-
-async function encryptForGithub(publicKeyB64, secretValue) {
-  await sodium.ready;
-  const keyBytes = sodium.from_base64(publicKeyB64, sodium.base64_variants.ORIGINAL);
-  const messageBytes = sodium.from_string(secretValue);
-  const encryptedBytes = sodium.crypto_box_seal(messageBytes, keyBytes);
-  return sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL);
-}
-
-async function setRepoSecret(owner, repo, secretName, secretValue) {
-  const pk = await gh(`/repos/${owner}/${repo}/actions/secrets/public-key`);
-  const encrypted = await encryptForGithub(pk.key, secretValue);
-  await gh(`/repos/${owner}/${repo}/actions/secrets/${secretName}`, {
-    method: "PUT",
-    body: JSON.stringify({ encrypted_value: encrypted, key_id: pk.key_id }),
-  });
-}
+/* ================= output repo config ================= */
 
 async function updateWorkflowOutputRepo(path, ownerRepoStr) {
   let fileData;
@@ -359,6 +342,16 @@ async function updateWorkflowOutputRepo(path, ownerRepoStr) {
   });
 }
 
+function copyToken() {
+  if (!state.token) {
+    showToast("কোনো token সেভ করা নেই।", "err");
+    return;
+  }
+  navigator.clipboard.writeText(state.token)
+    .then(() => showToast("✔ Token কপি হয়েছে", "ok"))
+    .catch(() => showToast("কপি করা যায়নি, ম্যানুয়ালি টাইপ করো।", "err"));
+}
+
 async function saveOutputConfig() {
   const outOwner = document.getElementById("f-out-owner").value.trim();
   const outRepo = document.getElementById("f-out-repo").value.trim();
@@ -370,17 +363,14 @@ async function saveOutputConfig() {
   try {
     const ownerRepoStr = `${outOwner}/${outRepo}`;
 
-    // ১. দুইটা workflow ফাইলে OUTPUT_REPO লাইন আপডেট করা
+    // দুইটা workflow ফাইলে OUTPUT_REPO লাইন আপডেট করা
     await updateWorkflowOutputRepo(".github/workflows/orchestrator.yml", ownerRepoStr);
     await updateWorkflowOutputRepo(".github/workflows/build-apk.yml", ownerRepoStr);
-
-    // ২. একই token দিয়ে OUTPUT_REPO_TOKEN secret বসানো (encrypt করে)
-    await setRepoSecret(state.owner, state.repo, "OUTPUT_REPO_TOKEN", state.token);
 
     state.outputOwner = outOwner; state.outputRepo = outRepo;
     localStorage.setItem("oc_output", JSON.stringify({ owner: outOwner, repo: outRepo }));
 
-    showToast(`✔ Output repo সেট হলো: ${ownerRepoStr}`, "ok");
+    showToast(`✔ Output repo সেট হলো: ${ownerRepoStr}। এবার OUTPUT_REPO_TOKEN secret-টা একবার ম্যানুয়ালি বসাও (নিচে দেখো)।`, "ok");
   } catch (e) {
     showToast(`সেট করা যায়নি: ${e.message}`, "err");
   } finally {
@@ -593,10 +583,18 @@ function renderSettingsTab() {
         ${state.savingOutput ? ICONS.loader(16,'#1a1408') : ICONS.gear(16,'#1a1408')} সেভ করো
       </button>
       <p style="font-size:11px;text-align:center;color:var(--muted);">
-        এটা দুটো workflow ফাইলে OUTPUT_REPO আপডেট করবে, এবং তোমার এই একই token দিয়ে
-        My-Agent রিপোতে <span class="mono">OUTPUT_REPO_TOKEN</span> secret বসিয়ে দেবে —
-        GitHub Settings-এ আলাদা করে কিছু করতে হবে না।
+        এটা দুটো workflow ফাইলে OUTPUT_REPO আপডেট করে দেবে (My-Agent রিপোতে)।
       </p>
+
+      <div class="task-card" style="margin-top:10px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">শেষ ধাপ (একবারই করতে হবে)</div>
+        <div style="font-size:12px;color:#c9cdd8;line-height:1.6;">
+          My-Agent রিপো → Settings → Secrets and variables → Actions → New repository secret<br/>
+          নাম: <span class="mono">OUTPUT_REPO_TOKEN</span><br/>
+          ভ্যালু: নিচের বাটনে চাপ দিয়ে তোমার token কপি করো, ওখানে পেস্ট করো
+        </div>
+        <button class="btn-ghost" style="margin-top:8px;width:100%;padding:9px;" onclick="copyToken()">টোকেন কপি করো</button>
+      </div>
     </div>`;
 }
 
